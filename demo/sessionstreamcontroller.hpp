@@ -85,7 +85,7 @@ public:
         // cc
         m_ccConfig = ccConfig;
 
-        m_congestionCtl.reset(new RenoCongestionContrl(m_ccConfig, sessionData, m_sessionId));
+        m_congestionCtl.reset(new CubicCongestionContrl(m_ccConfig, sessionData, m_sessionId));
 
         // send control
         m_sendCtl.reset(new PacketSender());
