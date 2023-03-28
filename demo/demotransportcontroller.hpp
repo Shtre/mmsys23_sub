@@ -128,6 +128,7 @@ private:
     std::set<DataNumber> m_lostPiecesl;/// lost packets will be stored here till retransmission
     CongestionCtlConfig ccConfig;/// congestion config file
     std::map<basefw::ID, std::shared_ptr<SessionStreamController>> m_sessStreamCtlMap;/// map session id to sessionstream
+    std::shared_ptr<CrossSessionData> m_sessionData;/// cross session data
 };
 
 /** @class A demo TransportController used to create DemoTransportCtl

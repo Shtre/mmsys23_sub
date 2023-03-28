@@ -58,7 +58,8 @@ bool DemoTransportCtl::StartTransportController(TransportDownloadTaskInfo tansDl
     SPDLOG_DEBUG("taskid: {}", tansDlTkInfo.m_rid.ToLogStr());
 
     m_transctlHandler = transCtlHandler;
-
+    m_sessionData = std::make_shared<CrossSessionData>();
+    
     m_multipathscheduler.reset(
             new RRMultiPathScheduler(m_tansDlTkInfo.m_rid, m_sessStreamCtlMap, m_downloadPieces, m_lostPiecesl));
     m_multipathscheduler->StartMultiPathScheduler(shared_from_this());
@@ -110,8 +111,11 @@ void DemoTransportCtl::OnSessionCreate(const fw::ID& sessionid)
     auto&& sessionItor = m_sessStreamCtlMap.find(sessionid);
     if (sessionItor == m_sessStreamCtlMap.end())
     {
+        m_sessionData->SessionCwndMap.insert({sessionid, 1});
+        m_sessionData->SessionRttMap.insert({sessionid, 10});
+        m_sessionData->SessionLossMap.insert({sessionid, 0});
         m_sessStreamCtlMap[sessionid] = std::make_shared<SessionStreamController>();
-        m_sessStreamCtlMap[sessionid]->StartSessionStreamCtl(sessionid, ccConfig, shared_from_this());
+        m_sessStreamCtlMap[sessionid]->StartSessionStreamCtl(sessionid, ccConfig, shared_from_this(), m_sessionData);
     }
     else
     {

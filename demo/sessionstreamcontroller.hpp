@@ -71,7 +71,8 @@ public:
     }
 
     void StartSessionStreamCtl(const basefw::ID& sessionId, CongestionCtlConfig& ccConfig,
-            std::weak_ptr<SessionStreamCtlHandler> ssStreamHandler)
+            std::weak_ptr<SessionStreamCtlHandler> ssStreamHandler,
+            std::shared_ptr<CrossSessionData> sessionData)
     {
         if (isRunning)
         {
@@ -84,7 +85,7 @@ public:
         // cc
         m_ccConfig = ccConfig;
 
-        m_congestionCtl.reset(new CubicCongestionContrl(m_ccConfig));
+        m_congestionCtl.reset(new RenoCongestionContrl(m_ccConfig, sessionData, m_sessionId));
 
         // send control
         m_sendCtl.reset(new PacketSender());
