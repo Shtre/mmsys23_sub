@@ -29,10 +29,10 @@ int main(int argc, char** argv)
     auto combined_logger = std::make_shared<spdlog::logger>("mpdlogger", begin(sinks), end(sinks));
     //combined_logger->set_pattern("[%D %H:%M:%S.%e][%s %!: %#] %v");
     combined_logger->set_pattern("[%D %H:%M:%S.%e][%l][%s:%# %!()]%v");
-    combined_logger->set_level(spdlog::level::info);
+    combined_logger->set_level(spdlog::level::warn);
     combined_logger->flush_on(spdlog::level::debug);
     spdlog::set_default_logger(combined_logger);
-
+    
     ////////////////////parse initiate parameters//////////////////////////////
     std::string jsonpath(argv[1]);
     std::cout << "Json file :" << jsonpath << std::endl;
