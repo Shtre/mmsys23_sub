@@ -397,11 +397,20 @@ public:
         SPDLOG_TRACE("ackevent:{}, lossevent:{}", ackEvent.DebugInfo(), lossEvent.DebugInfo());
         if (lossEvent.valid)
         {
+            loss_1 = loss_2;
+            loss_2 = 0;
+            uint32_t loss = std::max(loss_1, loss_2);
+            uint32_t rtt = rttstats.SmoothedOrInitialRtt().ToMilliseconds();
+            m_sessionData->UpdateSelfData(m_sessionID, m_cwnd, rtt, loss);
             OnDataLoss(lossEvent);
         }
 
         if (ackEvent.valid)
         {
+            loss_2 = loss_2 + 1;
+            uint32_t loss = std::max(loss_1, loss_2);
+            uint32_t rtt = rttstats.SmoothedOrInitialRtt().ToMilliseconds();
+            m_sessionData->UpdateSelfData(m_sessionID, m_cwnd, rtt, loss);
             OnDataRecv(ackEvent, rttstats);
         }
 
@@ -505,6 +514,7 @@ private:
         {
             m_cwnd = m_cwnd / 2;
             m_cwnd = BoundCwnd(m_cwnd);
+            m_ssThresh = m_cwnd;
         }
         else if(!LostCheckRecovery(maxsentTic))
         {
@@ -553,11 +563,16 @@ private:
             time_offset = rec_time - bic_K;
         
         uint32_t target;
-        target = origin_point + cubic_C * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0;
+        if (rec_time < bic_K)
+            target = origin_point - cubic_C * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0;
+        else
+            target = origin_point + cubic_C * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0;
         SPDLOG_INFO("target:{},m_cwnd:{}", target, m_cwnd);
         uint32_t cnt;
         if (target > m_cwnd)
-            cnt = m_cwnd / ( target - m_cwnd );
+        {
+            cnt = m_cwnd / ( target - m_cwnd + (m_olia ? GetAlpha() : 0));
+        }
         else 
             cnt = 100 * m_cwnd;
         
@@ -571,7 +586,103 @@ private:
                 if (cnt > max_cnt) cnt = max_cnt; 
             }
         }
+
         return cnt;
+    }
+
+    void GetMaxCwndSession(std::shared_ptr<std::vector<basefw::ID>> sessionIDList)
+    {
+        uint32_t session_max_cwnd;
+        for (auto&& id_cwnd = m_sessionData->SessionCwndMap.begin(); id_cwnd != m_sessionData->SessionCwndMap.end(); id_cwnd++)
+        {
+            if (id_cwnd->second > session_max_cwnd)
+            {
+                session_max_cwnd = id_cwnd->second;
+                sessionIDList->clear();
+                sessionIDList->push_back(id_cwnd->first);
+            }
+            else if (id_cwnd->second == session_max_cwnd)
+            {
+                sessionIDList->push_back(id_cwnd->first);
+            }
+        }
+    }
+
+    void GetBestSession(std::shared_ptr<std::vector<basefw::ID>> sessionIDList)
+    {
+        uint32_t max_rtt;
+        uint32_t max_loss;
+        for (auto&& id_rtt = m_sessionData->SessionRttMap.begin(); id_rtt != m_sessionData->SessionRttMap.end(); id_rtt++)
+        {
+            uint32_t tmp_loss = m_sessionData->SessionLossMap[id_rtt->first];
+            uint32_t tmp_rtt = id_rtt->second;
+            if ( tmp_loss * tmp_loss * max_rtt > max_loss * max_loss * tmp_rtt)
+            {
+                max_rtt = tmp_rtt;
+                max_loss = tmp_loss;
+                sessionIDList->clear();
+                sessionIDList->push_back(id_rtt->first);
+            }
+            else if (tmp_loss * tmp_loss * max_rtt == max_loss * max_loss * tmp_rtt)
+            {
+                sessionIDList->push_back(id_rtt->first);
+            }
+        }
+    }
+
+    double GetAlpha()
+    {
+        double alpha;
+        std::shared_ptr<std::vector<basefw::ID>> M_sessionIDList = std::make_shared<std::vector<basefw::ID>>();
+        std::shared_ptr<std::vector<basefw::ID>> B_sessionIDList = std::make_shared<std::vector<basefw::ID>>();
+
+        GetMaxCwndSession(M_sessionIDList);
+        GetBestSession(B_sessionIDList);
+        
+        uint32_t session_all = m_sessionData->SessionCwndMap.size();
+        //compute the number of sessionID is in best path but not in max cwnd path
+        uint32_t session_collected = 0;
+        for (auto&& id = B_sessionIDList->begin(); id != B_sessionIDList->end(); id++)
+        {
+            bool tmp_in_M = false;
+            for (auto&& id2 = M_sessionIDList->begin(); id2 != M_sessionIDList->end(); id2++)
+            {
+                if (id == id2)
+                {
+                    tmp_in_M = true;
+                    break;
+                }
+            }
+            if (!tmp_in_M) session_collected ++;
+        }
+        
+        // whether sessionID is in best path / max cwnd path
+        bool in_B = false;
+        bool in_M = false;
+        for (uint32_t i=0;i<B_sessionIDList->size();i++)
+        {
+            if (B_sessionIDList->at(i) == m_sessionID) in_B = true;
+        }
+        for (uint32_t i=0;i<M_sessionIDList->size();i++)
+        {
+            if (M_sessionIDList->at(i) == m_sessionID) in_M = true;
+        }
+        
+        //whether sessionID is in best path but not in max cwnd path
+        if (in_B && !in_M) 
+        {
+            alpha = 1.0 / session_all /session_collected;
+        }
+        //whether sessionID is in max cwnd path and collected path != 0
+        else if (in_M && session_collected)
+        {
+            alpha = - 1.0 / session_all / M_sessionIDList->size();
+        }
+        else
+        {
+            alpha = 0;
+        }
+        return alpha;
     }
 
 
@@ -586,6 +697,8 @@ private:
     uint32_t m_cwnd_cnt{ 0 }; /* in congestion avoid phase, used for counting ack packets*/
     uint32_t m_last_max_cwnd{ 0 };
     uint32_t origin_point{ 1 };
+    uint32_t loss_1{ 0 };
+    uint32_t loss_2{ 0 };
     Timepoint lastLagestLossPktSentTic{ Timepoint::Zero() };
     std::shared_ptr<CrossSessionData> m_sessionData;
     basefw::ID m_sessionID;
@@ -597,6 +710,7 @@ private:
     
     bool m_fast_convergence{ 0 };
     bool m_tcp_friendliness{ 0 };
+    bool m_olia{ 1 };
     uint32_t m_minCwnd{ 1 };
     uint32_t m_maxCwnd{ 64 };
     uint32_t m_ssThresh{ 32 };/** slow start threshold*/

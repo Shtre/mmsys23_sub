@@ -16,7 +16,7 @@ from mininet.log import info, setLogLevel, warning
 import shlex
 import os
 
-server_num = 2  # data nodes number
+server_num = 5  # data nodes number
 curr_dir = os.getcwd()
 """
 we assume  curr_dir/ has following struct
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
     def addTClink(l, r, delay='5ms', bw=100):
         bridgeswitch = net.addSwitch(name=f's{switchid}')
-        net.addLink(l, bridgeswitch, cls=TCLink, delay=delay, loss=1)
+        net.addLink(l, bridgeswitch, cls=TCLink, delay=delay, loss=0.01)
         net.addLink(bridgeswitch, r, cls=TCLink, bw=bw, max_queue_size=100)
 
 
