@@ -198,6 +198,7 @@ public:
     /** @brief Some data pieces have been received on session with sessionid
      * @param sessionid  the session
      * @param datapiece data pieces number, each packet carry exact one 1KB data piece
+     * @param tic_us receive time point in microseconds
      * */
     virtual void OnDataPiecesReceived(const fw::ID& sessionid, uint32_t seq, int32_t datapiece, uint64_t tic_us)
     {
@@ -210,7 +211,7 @@ public:
      * @param sessionid remote upside session id
      * @param datapiecesvec the data piece number, each packet may carry 1 piece or 8 pieces
      * @param seqvec sequence number
-     * @param senttime_us the sent timepoint in us
+     * @param senttime_us the sent time point in us
      */
     virtual void
     OnDataSent(const fw::ID& sessionid, const std::vector<int32_t>& datapiecesvec,

@@ -92,10 +92,10 @@ public:
      * kernel space or hardware buffer.
      * @param sessionid remote upside session id
      * @param datapiecesvec the data piece number, each packet may carry 1 piece or 8 pieces
-     * @param senttime_ms the sent timepoint in ms
+     * @param senttime_us the sent timepoint in ms
      */
     void OnDataSent(const fw::ID& sessionid, const std::vector<int32_t>& datapiecesvec,
-            const std::vector<uint32_t>& seqvec, uint64_t senttime_ms) override;
+            const std::vector<uint32_t>& seqvec, uint64_t senttime_us) override;
 
     /**@brief Check timeout events periodically, the user defined timeout check operation may be called in here.
      * */

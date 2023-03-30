@@ -19,20 +19,30 @@ def get_score():
             if search_rt is not None:
                 rawlogs.append(orjson.loads(search_rt.group(0)))
     raw_data_pd = pd.DataFrame(rawlogs)
+    tx_data_pd = raw_data_pd[raw_data_pd['event'] == 'Tx'].copy()
+    tx_data_pd.sort_values('value', inplace=True)
     rx_data_pd = raw_data_pd[raw_data_pd['event'] == 'Rx'].copy()
     rx_data_pd.sort_values('value', inplace=True)
-
+    send_subpiece = tx_data_pd[['timestamp', 'value']].to_numpy()
     recv_subpiece = rx_data_pd[['timestamp', 'value']].to_numpy()
+
     if len(recv_subpiece) == 0:
         print(f'data loss! Score: 0')
         return 0
     recv_ts = {}
     for item in recv_subpiece:
-        recv_ts[item[1]] = item[0] if item[1] not in recv_ts else min(recv_ts[item[1]], item[0])
+        recv_ts[item[1]] = item[0] if item[1] not in recv_ts.keys() else min(recv_ts[item[1]], item[0])
 
-    t_start = recv_ts[0]
+    ts_tmp = 0
+    for seq, ts in recv_ts.items():
+        ts_tmp = max(ts, ts_tmp)
+        recv_ts[seq] = ts_tmp
+
+    t_start = send_subpiece[0, 0]
     recv_final_idx = recv_subpiece[-1, 1]
     recv_final_ts = recv_ts[recv_final_idx]
+    print(f'recv_start_ts: {t_start}')
+    print(f'recv_end_ts: {recv_final_ts}')
     T = (recv_final_ts - t_start) / 1e6
     DS_ = len(recv_ts.keys())
     DS = len(recv_subpiece) / 1024

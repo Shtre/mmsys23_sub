@@ -240,22 +240,22 @@ void DemoTransportCtl::OnDataPiecesReceived(const fw::ID& sessionid, uint32_t se
  * kernel space or hardware buffer.
  * @param sessionid remote upside session id
  * @param datapiecesvec the data piece number, each packet may carry 1 piece or 8 pieces
- * @param senttime_ms the sent timepoint in ms
+ * @param senttime_us the sent timepoint in ms
  */
 void DemoTransportCtl::OnDataSent(const fw::ID& sessionid, const std::vector<int32_t>& datapiecesvec,
         const std::vector<uint32_t>& seqvec,
-        uint64_t senttime_ms)
+        uint64_t senttime_us)
 {
     SPDLOG_DEBUG("sessionid = {}, datapieces = {}, seq = {}, senttic = {}",
             sessionid.ToLogStr(),
             datapiecesvec,
-            seqvec, senttime_ms);
+            seqvec, senttime_us);
     auto&& sessStreamItor = m_sessStreamCtlMap.find(sessionid);
     if (sessStreamItor != m_sessStreamCtlMap.end())
     {
         sessStreamItor->second->OnDataRequestPktSent(
                 seqvec,
-                datapiecesvec, Clock::GetClock()->CreateTimeFromMicroseconds(senttime_ms));
+                datapiecesvec, Clock::GetClock()->CreateTimeFromMicroseconds(senttime_us));
     }
     else
     {
