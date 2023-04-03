@@ -123,6 +123,7 @@ public:
         }
         Duration loss_delay = maxrtt + (maxrtt * (5.0 / 4.0));
         loss_delay = std::max(loss_delay, Duration::FromMicroseconds(1));
+        loss_delay = std::min(loss_delay, max_loss_delay);
         SPDLOG_TRACE(" maxrtt: {}, loss_delay: {}", maxrtt.ToDebuggingValue(), loss_delay.ToDebuggingValue());
         for (const auto& pkt_itor: downloadingmap.inflightPktMap)
         {
@@ -145,6 +146,7 @@ public:
     }
 
 private:
+    Duration max_loss_delay{ Duration::FromMilliseconds(500) };
 };
 
 
@@ -315,7 +317,7 @@ private:
     void OnDataLoss(const LossEvent& lossEvent)
     {
         // SPDLOG_DEBUG("lossevent:{}", lossEvent.DebugInfo());
-        SPDLOG_INFO("eventtime:{},m_cwnd:{}", Clock::GetClock()->Now().ToDebuggingValue(),m_cwnd);
+        SPDLOG_DEBUG("eventtime:{},m_cwnd:{}", Clock::GetClock()->Now().ToDebuggingValue(),m_cwnd);
         Timepoint maxsentTic{ Timepoint::Zero() };
 
         for (const auto& lostpkt: lossEvent.lossPackets)
@@ -556,7 +558,7 @@ private:
         }
         Duration time_offset = Duration::Zero(); // |t-K|
         Duration rec_time = ackEvent.sendtic + rttstats.latest_rtt() + rttstats.MinOrInitialRtt() - epoch_start;
-        SPDLOG_INFO("bic_K:{},rec_time:{}", bic_K.ToMilliseconds(), rec_time.ToMilliseconds());
+        SPDLOG_DEBUG("bic_K:{},rec_time:{}", bic_K.ToMilliseconds(), rec_time.ToMilliseconds());
         if (rec_time < bic_K)		
             time_offset = bic_K - rec_time;
         else
@@ -567,7 +569,7 @@ private:
             target = origin_point - cubic_C * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0;
         else
             target = origin_point + cubic_C * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0 * time_offset.ToMilliseconds()/1000.0;
-        SPDLOG_INFO("target:{},m_cwnd:{}", target, m_cwnd);
+        SPDLOG_DEBUG("target:{},m_cwnd:{}", target, m_cwnd);
         uint32_t cnt;
         if (target > m_cwnd)
         {
@@ -899,7 +901,7 @@ private:
         {
             // Not In slow start and not inside Recovery state
             // Cut half
-            m_cwnd = m_cwnd / 2;
+            m_cwnd = m_cwnd * 0.7;
             m_cwnd = BoundCwnd(m_cwnd);
             m_ssThresh = m_cwnd;
             // enter Recovery state
